@@ -9,12 +9,19 @@
 import UIKit
 import CoreData
 
-class ViewController: UIViewController {
+class ViewController: UIViewController, NSFetchedResultsControllerDelegate {
 
     @IBOutlet weak var tblStudent: UITableView!
     
-    var arrStudents = [NSManagedObject]()
+    var fetchedResultsController: NSFetchedResultsController!
     
+    //Mark: - Properties
+    lazy var context: NSManagedObjectContext = {
+        let appDel:AppDelegate = (UIApplication.sharedApplication().delegate as! AppDelegate)
+        return appDel.managedObjectContext
+    }()
+    
+    //Mark: - Life Cycle
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
@@ -28,23 +35,22 @@ class ViewController: UIViewController {
     
     //Fetch Student List
     func fetchAllStudentList() {
-        let appDel:AppDelegate = (UIApplication.sharedApplication().delegate as! AppDelegate)
-        let context = appDel.managedObjectContext
+        let fetchRequest = NSFetchRequest(entityName: "Student")
+        let fetchSort = NSSortDescriptor(key: "rollno", ascending: true)
+        fetchRequest.sortDescriptors = [fetchSort]
         
-        //Define your Entity name here
-        let request = NSFetchRequest(entityName:"Student")
+        fetchedResultsController = NSFetchedResultsController(fetchRequest: fetchRequest, managedObjectContext: context, sectionNameKeyPath: nil, cacheName: nil)
+        fetchedResultsController.delegate = self
+        
         do {
-            let results = try context.executeFetchRequest(request)
-            arrStudents = results as! [NSManagedObject]
-            tblStudent.reloadData()
+            try fetchedResultsController.performFetch()
         } catch let error as NSError {
-            print("Could not fetch \(error), \(error.userInfo)")
+            print("Unable to perform fetch: \(error.localizedDescription)")
         }
     }
     
     //Show list of student
     //MARK: UITableViewDelegate
-    
     func tableView(tableView: UITableView, didSelectRowAtIndexPath indexPath: NSIndexPath) {
         
     }
@@ -54,13 +60,21 @@ class ViewController: UIViewController {
     }
     
     //MARK: UITableViewDataSource
-    
+    //Number of section
     func numberOfSectionsInTableView(tableView: UITableView) -> Int {
-        return 1
+        //1
+        guard let sectionCount = fetchedResultsController.sections?.count else {
+            return 0
+        }
+        return sectionCount
     }
     
+    //Number of section in row
     func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return arrStudents.count
+        guard let sectionData = fetchedResultsController.sections?[section] else {
+            return 0
+        }
+        return sectionData.numberOfObjects
     }
     
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
@@ -70,7 +84,8 @@ class ViewController: UIViewController {
     }
     
     func configureCell(cell: UITableViewCell, forRowAtIndexPath: NSIndexPath) {
-        let student = self.arrStudents[forRowAtIndexPath.row]
+        //1
+        let student = fetchedResultsController.objectAtIndexPath(forRowAtIndexPath) as! Student
         cell.textLabel?.text = student.valueForKey("first_name") as? String
     }
     
@@ -83,25 +98,50 @@ class ViewController: UIViewController {
     }
     
     
-    
     func tableView(tableView: UITableView, commitEditingStyle editingStyle: UITableViewCellEditingStyle, forRowAtIndexPath indexPath: NSIndexPath) {
-        let appDel:AppDelegate = (UIApplication.sharedApplication().delegate as! AppDelegate)
-        let context = appDel.managedObjectContext
-        if editingStyle == .Delete {
-            // Delete object from database
-            context.deleteObject(self.arrStudents[indexPath.row])
-            
-            // Save the object to persistent store
+        switch editingStyle {
+        case .Delete:
+            let student = fetchedResultsController.objectAtIndexPath(indexPath) as! Student
+            context.deleteObject(student)
             do {
                 try context.save()
-            } catch let error {
-                print("Can't Delete! \(error))")
-                return
+            } catch let error as NSError {
+                print("Error saving context after delete: \(error.localizedDescription)")
             }
-
-            // Remove student from table view
-            self.arrStudents.removeAtIndex(indexPath.row)
-            tblStudent.deleteRowsAtIndexPaths([indexPath], withRowAnimation: .Fade)
+        default:break
+        }
+    }
+    
+    
+    // MARK: -  FetchedResultsController Delegate
+    func controllerWillChangeContent(controller: NSFetchedResultsController) {
+        tblStudent.beginUpdates()
+    }
+    
+    func controllerDidChangeContent(controller: NSFetchedResultsController) {
+        tblStudent.endUpdates()
+    }
+    
+    
+    func controller(controller: NSFetchedResultsController, didChangeSection sectionInfo: NSFetchedResultsSectionInfo, atIndex sectionIndex: Int, forChangeType type: NSFetchedResultsChangeType) {
+        // 1
+        switch type {
+        case .Insert:
+            tblStudent.insertSections(NSIndexSet(index: sectionIndex), withRowAnimation: .Automatic)
+        case .Delete:
+            tblStudent.deleteSections(NSIndexSet(index: sectionIndex), withRowAnimation: .Automatic)
+        default: break
+        }
+    }
+    
+    func controller(controller: NSFetchedResultsController, didChangeObject anObject: AnyObject, atIndexPath indexPath: NSIndexPath?, forChangeType type: NSFetchedResultsChangeType, newIndexPath: NSIndexPath?) {
+        // 2
+        switch type {
+        case .Insert:
+            tblStudent.insertRowsAtIndexPaths([newIndexPath!], withRowAnimation: .Automatic)
+        case .Delete:
+            tblStudent.deleteRowsAtIndexPaths([indexPath!], withRowAnimation: .Automatic)
+        default: break
         }
     }
 

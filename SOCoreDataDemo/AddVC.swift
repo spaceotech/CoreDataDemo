@@ -20,19 +20,21 @@ class AddVC: UIViewController {
 
         // Do any additional setup after loading the view.
     }
+    
+    lazy var context: NSManagedObjectContext = {
+        let appDel:AppDelegate = (UIApplication.sharedApplication().delegate as! AppDelegate)
+        return appDel.managedObjectContext
+    }()
 
     //MARK:- Save student record action
     @IBAction func actionSave(sender: AnyObject) {
         if (txtRollNo.text?.characters.count > 0) && (txtRollNo.text?.characters.count > 0) && (txtRollNo.text?.characters.count > 0) {
             
-            //Add new entry in core data
-            let appDel:AppDelegate = (UIApplication.sharedApplication().delegate as! AppDelegate)
-            let context = appDel.managedObjectContext
+            let entity = NSEntityDescription.entityForName("Student", inManagedObjectContext:context)
             
-            // Create a new student
-            let newStudent : Student = NSEntityDescription.insertNewObjectForEntityForName("Student", inManagedObjectContext: context) as! Student
-            newStudent.first_name = self.txtFirstName.text!
-            newStudent.last_name = self.txtLastName.text!
+            let newStudent = Student(entity:entity!, insertIntoManagedObjectContext:context)
+            newStudent.first_name = txtFirstName.text
+            newStudent.last_name = txtLastName.text
             
             if let number = Int(txtRollNo.text!) {
                 let myRollNo = NSNumber(integer:number)
@@ -40,12 +42,11 @@ class AddVC: UIViewController {
             } else {
                 print("'\(txtRollNo.text!)' did not convert to an Int")
             }
-            
-            // Save the object to persistent store
+
             do {
-                try context.save()
-            } catch let error {
-                print("Could not cache the response \(error)")
+                try self.context.save()
+            } catch let error as NSError {
+                print("Error saving movie \(error.localizedDescription)")
             }
             self.navigationController?.popViewControllerAnimated(true)
         } else {
